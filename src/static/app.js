@@ -13,6 +13,9 @@ document.addEventListener("DOMContentLoaded", () => {
       // Clear loading message
       activitiesList.innerHTML = "";
 
+      // Reset select options before populating
+      activitySelect.innerHTML = '<option value="">-- Select an activity --</option>';
+
       // Populate activities list
       Object.entries(activities).forEach(([name, details]) => {
         const activityCard = document.createElement("div");
@@ -27,6 +30,91 @@ document.addEventListener("DOMContentLoaded", () => {
           <p><strong>Availability:</strong> ${spotsLeft} spots left</p>
         `;
 
+        // Create participants section
+        const participantsDiv = document.createElement("div");
+        participantsDiv.className = "participants";
+
+        const title = document.createElement("h5");
+        title.className = "participants-title";
+        title.textContent = "Participants";
+        participantsDiv.appendChild(title);
+
+        if (details.participants && details.participants.length > 0) {
+          const ul = document.createElement("ul");
+          ul.className = "participants-list";
+
+          details.participants.forEach((p) => {
+            const li = document.createElement("li");
+            li.className = "participant-item";
+
+            const avatar = document.createElement("span");
+            avatar.className = "avatar";
+            avatar.textContent = p && p.length ? p[0].toUpperCase() : "?";
+
+            const nameSpan = document.createElement("span");
+            nameSpan.textContent = p;
+
+            li.appendChild(avatar);
+            li.appendChild(nameSpan);
+
+            // Add delete/unregister button next to each participant
+            const deleteBtn = document.createElement("button");
+            deleteBtn.className = "delete-btn";
+            deleteBtn.setAttribute("aria-label", `Unregister ${p} from ${name}`);
+            deleteBtn.title = "Remove participant";
+            deleteBtn.textContent = "✖";
+
+            // Click handler for unregistering a participant
+            deleteBtn.addEventListener("click", async () => {
+              // Optionally confirm
+              const ok = confirm(`Unregister ${p} from ${name}?`);
+              if (!ok) return;
+
+              try {
+                const resp = await fetch(
+                  `/activities/${encodeURIComponent(name)}/unregister?email=${encodeURIComponent(p)}`,
+                  { method: "POST" }
+                );
+
+                const result = await resp.json();
+
+                if (resp.ok) {
+                  messageDiv.textContent = result.message;
+                  messageDiv.className = "success";
+                  messageDiv.classList.remove("hidden");
+                  // Refresh the activities list so UI updates
+                  await fetchActivities();
+                } else {
+                  messageDiv.textContent = result.detail || "Could not remove participant";
+                  messageDiv.className = "error";
+                  messageDiv.classList.remove("hidden");
+                }
+
+                // Auto-hide message
+                setTimeout(() => {
+                  messageDiv.classList.add("hidden");
+                }, 4000);
+              } catch (err) {
+                console.error("Error unregistering:", err);
+                messageDiv.textContent = "Failed to unregister. Please try again.";
+                messageDiv.className = "error";
+                messageDiv.classList.remove("hidden");
+              }
+            });
+
+            li.appendChild(deleteBtn);
+            ul.appendChild(li);
+          });
+
+          participantsDiv.appendChild(ul);
+        } else {
+          const noP = document.createElement("p");
+          noP.className = "info";
+          noP.textContent = "No participants yet";
+          participantsDiv.appendChild(noP);
+        }
+
+        activityCard.appendChild(participantsDiv);
         activitiesList.appendChild(activityCard);
 
         // Add option to select dropdown
@@ -62,6 +150,8 @@ document.addEventListener("DOMContentLoaded", () => {
         messageDiv.textContent = result.message;
         messageDiv.className = "success";
         signupForm.reset();
+        // refresh activities so participants list updates immediately
+        await fetchActivities();
       } else {
         messageDiv.textContent = result.detail || "An error occurred";
         messageDiv.className = "error";
